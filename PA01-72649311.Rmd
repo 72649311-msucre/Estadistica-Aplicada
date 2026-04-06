@@ -1,0 +1,271 @@
+---
+title: "ESTADÍSTICA APLICADA"
+subtitle: "PRODUCTO ACADEMICO N°1"
+author: Marcelo Fabian Sucre Chavez
+date:  "`r format(Sys.time(), '%d - %m - %Y')`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+    code_folding: show
+css: extras/custom.css
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{=html}
+<style>
+body {
+text-align: justify}
+</style>
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = TRUE, echo = TRUE, warning = FALSE, message = FALSE, comment = NA)
+library(knitr)
+library(tidyverse)
+library(janitor)
+library(glue)
+library(kableExtra)
+library(skimr)
+library(descriptr)
+library(corrplot)
+library(BSDA)
+library(EnvStats)
+library(moderndive)
+library(gapminder)
+```
+
+- **Actividad Individual:**
+  - Análisis e interpretación de resultados estadísticos para la toma de decisiones
+- **Lenguaje Utilizado:**
+  - R
+- **Plataforma Utilizada:**
+  - RStudio
+
+------------------------------------------------------------------------
+
+
+# Prueba de hipótesis de un parámetro
+
+### Dataset
+- Se usa el siguiente dataset: `women` _(Average Heights and Weights for American Women)_
+  - Contiene el promedio de pesos y alturas para mujeres americanas entre 30 y 39 años
+- Además, para el ejercicio añadiremos las siguientes columnas al dataset:
+  - `height_m`: altura en metros (1 pulgada = 0.0254 metros).
+  ```
+  > women$height_m <- women$height * 0.0254
+  ```
+  - `weight_kg`: peso en kilogramos (1 libra = 0.4536 kilogramos).
+  ```
+  > women$weight_kg <- women$weight * 0.4536
+  ```
+  - `imc`: Indice de masa corporal ($peso/altura^2$).
+  ```
+  > women$imc <- women$weight_kg/(women$height_m*women$height_m)
+  ```
+- El dataset queda con las siguientes columnas:
+```         
+> head(women)
+  height weight height_m weight_kg      imc
+1     58    115   1.4732   52.1640 24.03518
+2     59    117   1.4986   53.0712 23.63129
+3     60    120   1.5240   54.4320 23.43605
+4     61    123   1.5494   55.7928 23.24080
+5     62    126   1.5748   57.1536 23.04585
+6     63    129   1.6002   58.5144 22.85147
+```
+
+### Hipótesis
+- Se puede considerar que las mujeres de entre 30 y 39 años son una población de riesgo si se demuestra que la media de su IMC es mayor a 30 (un IMC mayor a 30 indica obesidad)  
+
+$$H_0: \mu=30 \text{  (El IMC promedio es 30)}$$
+$$H_1: \mu>30 \text{  (El IMC promedio es mayor a 30)}$$
+
+- Nivel de significancia: $\alpha = 0.05$
+
+### Desarrollo
+- Utilizamos la función `t.test()` para realizar una prueba de hipótesis sobre la media de la población.
+```         
+> t.test(women$imc, mu=30 , alternative="greater")
+```
+- Obteniendo los siguientes resultados:
+```
+    One Sample t-test
+
+data:  women$imc
+t = -45.553, df = 14, p-value = 1
+alternative hypothesis: true mean is greater than 30
+95 percent confidence interval:
+ 22.44585      Inf
+sample estimates:
+mean of x 
+ 22.72706
+```
+### Conclusiones
+- Tenemos un $p = 1$. Entonces no se rechaza la hipótesis $H_0$.
+- Por lo tanto, no existe evidencia suficiente para afirmar que el IMC promedio de la muestra sea mayor a 30.
+- En consecuencia, no se puede considerar que la población analizada se encuentre en una condición de riesgo.
+
+# Prueba de hipótesis de dos parámetros
+
+### Dataset
+- Se usa el siguiente dataset: `sleep` _(Student's Sleep Data)_
+  - Contiene datos que muestran el efecto de dos fármacos somniferos en 10 pacientes.
+- El dataset tiene las siguientes columnas:  
+``` 
+> head(sleep)
+  extra group ID
+1   0.7     1  1
+2  -1.6     1  2
+3  -0.2     1  3
+4  -1.2     1  4
+5  -0.1     1  5
+6   3.4     1  6
+```         
+- Se separa los datos de los efectos de cada uno de los fármacos
+```         
+> g1 <- sleep$extra[sleep$group == 1]
+> g2 <- sleep$extra[sleep$group == 2]
+```
+
+### Hipótesis
+- Se puede considerar que el fármaco 2 tiene un mejor efecto somnifero que el fármaco 1
+
+$$H_0: \mu2<=\mu_1 \text{  (El fármaco 1 tiene mejor o igual efecto que el fármaco 2)}$$
+$$H_1: \mu2>\mu_1 \text{  (El fármaco 2 tiene mejor efecto que el fármaco 1)}$$
+
+- Nivel de significancia: $\alpha = 0.05$
+
+### Desarrollo
+
+- Utilizamos la función `t.test()` para realizar una prueba de hipótesis sobre la media de la población.
+  - Se usa el parametor `paired` ya que los valores de `g1` y `g2` estan emparejados, es decir que pertenecen al mismo individuo de evaluación.
+
+```         
+> t.test(g2, g1, paired=TRUE, alternative = "greater")
+```
+
+- Obteniendo los siguientes resultados:
+```
+    Paired t-test
+
+data:  g2 and g1
+t = 4.0621, df = 9, p-value = 0.001416
+alternative hypothesis: true mean difference is greater than 0
+95 percent confidence interval:
+ 0.8669947       Inf
+sample estimates:
+mean difference 
+           1.58 
+```
+### Conclusiones
+- Tenemos un $p = 0.001416$. Entonces se rechaza la hipótesis $H_0$.
+- Por lo tanto, existe evidencia estadísticamente significativa para afirmar que el fármaco 2 tiene un mayor efecto somnifero en comparacion con el fármaco 1
+
+
+# Prueba de hipótesis ANOVA one-way
+
+### Dataset
+- Se usara el siguiente dataset: `PlantGrowth` _(Results from an Experiment on Plant Growth)_
+  - Contiene los resultados de un experimento para comparar los rendimientos (medidos por el peso seco de las plantas) obtenidos bajo un grupo de control y dos condiciones de tratamiento diferentes. (ctrl, trt1 y trt2)
+- El dataset tiene las siguientes columnas:  
+```         
+> head(PlantGrowth)
+  weight group
+1   4.17  ctrl
+2   5.58  ctrl
+3   5.18  ctrl
+4   6.11  ctrl
+5   4.50  ctrl
+6   4.61  ctrl
+```   
+
+### Hipótesis
+
+- Se puede considerar que existen diferencias significativas en el crecimiento de las plantas según el tipo de tratamiento aplicado
+$$H_0: \mu1=\mu_2=\mu_3$$
+$$H_1: \text{ Al menos una media es diferente}  $$
+- Nivel de significancia:$\alpha = 0.05$
+
+### Desarrollo
+- Utilizamos la función `aov` (ANOVA) para evaluar si existen diferencias significativas entre las medias de los distintos grupos
+```         
+> modelo <- aov(weight ~ group, data = PlantGrowth)
+> summary(modelo)
+```         
+- Obteniendo los siguientes resultados:
+```         
+            Df Sum Sq Mean Sq F value Pr(>F)  
+group        2  3.766  1.8832   4.846 0.0159 *
+Residuals   27 10.492  0.3886                 
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+```
+### Conclusiones
+- Tenemos un $p = 0.0159$. Entonces se rechaza la hipótesis $H_0$.
+- Por lo tanto, existe evidencia estadísticamente significativa para afirmar que al menos uno de los tratamientos produce un crecimiento diferente en las plantas.
+
+
+# Prueba de hipótesis con comparaciones múltiples
+
+### Dataset
+- Se usara el siguiente dataset: `PlantGrowth` _(Results from an Experiment on Plant Growth)_
+  - Contiene los resultados de un experimento para comparar los rendimientos (medidos por el peso seco de las plantas) obtenidos bajo un grupo de control y dos condiciones de tratamiento diferentes. (ctrl, trt1 y trt2)
+- El dataset tiene las siguientes columnas:  
+```         
+> head(PlantGrowth)
+  weight group
+1   4.17  ctrl
+2   5.58  ctrl
+3   5.18  ctrl
+4   6.11  ctrl
+5   4.50  ctrl
+6   4.61  ctrl
+``` 
+
+- **El resultado significativo obtenido del ANOVA one-way en la prueba anterior nos garantiza que podemos aplicar el metodo LSD de Fisher para comparaciones multiples**
+
+### Desarrollo
+- Utilizamos la función `LSD.test` para realizar comparaciones multiples sobre la media de la población.
+```         
+> print(LSD.test(modelo,"group"))
+```
+- Obteniendo los siguientes resultados:
+```         
+> print(LSD.test(modelo,"group"))
+$statistics
+    MSerror Df  Mean       CV  t.value       LSD
+  0.3885959 27 5.073 12.28809 2.051831 0.5720126
+
+$parameters
+        test p.ajusted name.t ntr alpha
+  Fisher-LSD      none  group   3  0.05
+
+$means
+     weight       std  r        se      LCL      UCL  Min  Max    Q25   Q50    Q75
+ctrl  5.032 0.5830914 10 0.1971284 4.627526 5.436474 4.17 6.11 4.5500 5.155 5.2925
+trt1  4.661 0.7936757 10 0.1971284 4.256526 5.065474 3.59 6.03 4.2075 4.550 4.8700
+trt2  5.526 0.4425733 10 0.1971284 5.121526 5.930474 4.92 6.31 5.2675 5.435 5.7350
+
+$comparison
+NULL
+
+$groups
+     weight groups
+trt2  5.526      a
+ctrl  5.032     ab
+trt1  4.661      b
+
+attr(,"class")
+[1] "group"
+```
+
+### Conclusiones
+- Podemos concluir lo siguiente: 
+  - trt2 y trt1 tienen diferencias significativas (no comparten letra en su grupo).
+  - trt2 y ctrl no tienen diferencias significativas (comparten la letra a en su grupo).
+  - ctrl y trt1 no tienen diferencias significativas (comparten la letra b en su grupo).
+- trt2 presenta un crecimiento significativamente mayor en comparación con trt1.
+- ctrl no muestra diferencias significativas respecto a ninguno de los tratamiento.
+- trt2 parece ser el tratamiento más efectivo.
