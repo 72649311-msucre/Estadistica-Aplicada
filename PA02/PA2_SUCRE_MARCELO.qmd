@@ -1,0 +1,399 @@
+---
+title: "PRODUCTO ACADEMICO N°2"
+author:
+- familyname: Sucre Chávez
+  othernames: Marcelo Fabián
+  qualifications: Alumno de bachiller
+email: 72649311@continental.edu.pe
+phone: +51 982039165
+department: CARRERA \newline  \newline  CIENCIA DE LA COMPUTACIÓN 
+organization: ESTADÍSTICA APLICADA (24UC00410)
+number-sections: true
+fig-height: 5
+fig-width: 8
+cite-method: biblatex
+bibliography: references.bib
+biblio-style: authoryear-comp
+linestretch: 1.5
+format: 
+  report-pdf:
+    toc: true           # Activa la tabla de contenido
+    toc-depth: 2        # Niveles de encabezado que se muestran
+    number-sections: true  # (opcional) Numera los títulos
+    lof: true           # (opcional) Lista de figuras
+    lot: true           # (opcional) Lista de tablas   
+output-file: "PA2_SUCRE_MARCELO.pdf"
+lang: es
+execute:
+  echo: false
+  warning: false
+  message: false
+  tbl-cap-location: bottom
+---
+
+```{=latex}
+\providecommand{\pandocbounded}[1]{#1}
+```
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(janitor)
+library(glue)
+library(kableExtra)
+library(skimr)
+library(descriptr)
+library(corrplot)
+library(readxl)
+library(ggcorrplot)
+library(gtsummary)
+library(ggplot2)
+library(reshape2)
+library(knitr)
+library(kableExtra)
+library(equatiomatic)
+```
+
+# Planteamiento del problema
+
+El Producto Bruto Interno (PBI) es uno de los principales indicadores para medir el desempeño económico de un país. Sin embargo, su comportamiento está influenciado por múltiples sectores productivos, cuya contribución no siempre es evidente.
+
+En este contexto, surge la necesidad de analizar cómo los sectores económicos, tales como comercio, minería, construcción, agropecuario y pesca, influyen en la variación del PBI. La falta de un análisis cuantitativo dificulta comprender cuáles de estos sectores tienen mayor impacto en el crecimiento económico.
+
+Por ello, se plantea el uso de técnicas estadísticas y modelos de regresión lineal que permitan identificar, medir y explicar la relación entre el PBI y sus principales componentes sectoriales, con el fin de apoyar la toma de decisiones basada en datos.
+
+
+# Población
+
+Para el presente análisis se utilizó un dataset obtenido de la página oficial de estadísticas del Banco Central de Reserva del Perú (BCRP), disponible en su portal web de series estadísticas.
+
+- [producto-bruto-interno-y-demanda-interna-variaciones-indice](https://estadisticas.bcrp.gob.pe/estadisticas/series/mensuales/producto-bruto-interno-y-demanda-interna-variaciones-indice-200)
+
+El dataset, en formato Excel, contiene información mensual del Producto Bruto Interno (PBI) y la demanda interna del Perú, abarcando el periodo comprendido entre los años 2000 y 2025.
+
+Asimismo, incluye datos desagregados por los principales sectores económicos, tales como:
+- agropecuario
+- pesca
+- minería e hidrocarburos
+- construcción
+- comercio 
+- PBI general
+
+Esta información permite analizar la evolución y la relación de cada sector con el comportamiento global de la economía peruana.
+
+# Cargado de datos:
+- EL archivo *data.xls* en el directorio, contiene los datos del PBI
+- El archivo de Excel contiene 2 sheets:
+  - *Metadatos*: Contiene la descripcion de los datos generado por el BCRP
+  - *Mensuales*: Contiene los datos del PBI con los cuales trabajaremos
+- Luego de cargar los datos obtenemos lo siguiente:
+
+```{r}
+#| label: tbl-1
+#| tbl-cap: "Data del excel"
+
+data <- read_excel("data.xlsx", sheet = "Mensuales", skip=1)
+
+head(data,10) |> 
+  kable(booktabs = TRUE,
+        align = 'ccccl',
+        linesep = "" ,
+        format.args = list(big.mark = ",", digits = 4)) |> 
+  kable_styling(latex_options = c("HOLD_position","striped","scale_down"), 
+                font_size = 11) %>%
+  column_spec(1:7, width = "2cm") %>%  # ajusta ancho
+  row_spec(0, align = "c", bold = TRUE)
+```
+
+## Limpieza y Modelado
+
+- Para una mejor compresión de los datos cargados procederemos a cambiar el nombre de las columnas por unos más cortos
+- También vamos a separar la columna `MesAnio` en 2 nuevas columnas `Mes` y `Anio`
+- No hay necesidad de limpiar valores nulos
+- El dataset limpio es el siguiente:
+```{r}
+#| label: tbl-2
+#| tbl-cap: "Data limpia"
+colnames(data) <- c("MesAnio","PBI - Agropecuario", "PBI - Pesca", "PBI - Mineria", "PBI - Construccion", "PBI - Comerio", "PBI General")
+data_limpio <- data %>%
+  # 1. Separamos la columna MesAño: los primeros 3 caracteres son el mes, el resto el año
+  separate(MesAnio, into = c("Mes", "Anio"), sep = 3, remove = FALSE ) %>%
+  # 2. Convertimos el año a numérico y le sumamos 2000
+  mutate(Anio = as.numeric(Anio) + 2000)
+
+head(data_limpio,10) |> 
+  kable(booktabs = TRUE,
+        align = 'ccccl',
+        linesep = "" ,
+        format.args = list(big.mark = ",", digits = 4)) |> 
+  kable_styling(latex_options = c("HOLD_position","striped","scale_down"), 
+                font_size = 11) %>%
+  column_spec(1:9, width = "1.5cm") %>%  # ajusta ancho
+  row_spec(0, align = "c", bold = TRUE)
+```
+
+# Análisis del Comportamiento del PBI
+
+Las siguientes secciones mostraran un análisis del comportamiento del PBI entre los años 2000 a 2025
+
+## Evolución Historica del PBI
+- La siguiente gráfica muestra la evolución del PBI promedio por año para mostrat como ha crecido la economia con el tiempo
+- Se puede observar que hay una caida del PBI en el año 2020. Esto muestra el efecto negativo que tuvo la pandemia en la economia.
+```{r}
+#| fig-cap: Evolucion del PBI promedio por año
+pbi_anual <- data_limpio %>%
+  group_by(Anio) %>%
+  summarise(pbi_medio = mean(`PBI General`, na.rm = TRUE))
+
+ggplot(pbi_anual, aes(x = Anio, y = pbi_medio)) +
+  geom_line(color = "blue", linewidth = 1) +
+  geom_point() +
+  geom_text(aes(label = round(pbi_medio, 2)), vjust = -1, size = 3) +
+  labs(x = "Año",
+       y = "PBI") +
+  theme_minimal()
+```
+
+## Análisis descriptivo
+
+- La siguiente tabla muestra los estadísticos descriptivos de los diferentes PBIs obtenidos del año 2000 al 2025
+```{r}
+#| label: tbl-3
+#| tbl-cap: "Estadisticos descriptivos"
+
+  # 1. Transformamos a formato largo para analizar los sectores
+df_stats <- data_limpio %>%
+  pivot_longer(
+    cols = contains("PBI"), 
+    names_to = "sector", 
+    values_to = "indice"
+  ) %>%
+  # Limpiamos el prefijo "PBI - " para que los nombres se vean mejor en la tabla y gráfico
+  mutate(sector = str_remove(sector, "PBI - ")) %>%
+  group_by(sector) %>%
+  summarise(
+    Media = mean(indice, na.rm = TRUE),
+    Mediana = median(indice, na.rm = TRUE),
+    Desv_Estandar = sd(indice, na.rm = TRUE),
+    Coef_Variacion = (sd(indice, na.rm = TRUE) / mean(indice, na.rm = TRUE)) * 100,
+    Minimo = min(indice, na.rm = TRUE),
+    Maximo = max(indice, na.rm = TRUE)
+  ) %>%
+  arrange(desc(Desv_Estandar))
+
+head(df_stats,10) |> 
+  kable(booktabs = TRUE,
+        align = 'ccccl',
+        linesep = "" ,
+        format.args = list(big.mark = ",", digits = 4)) |> 
+  kable_styling(latex_options = c("HOLD_position","striped"), font_size = 11)%>%
+  row_spec(0, align = "c",bold=T )
+```
+
+## Correlación
+- Se utiliza una matriz de correlación de Pearson para analizar que sectores tienen una relación fuerte con el PBI total.
+```{r}
+#| fig-cap: Matriz de Correlación entre Sectores y PBI General
+# 1. Seleccionamos solo las columnas numéricas de los sectores
+df_corr <- data_limpio %>%
+  select(contains("PBI")) %>%
+  # Limpiamos los nombres para que el gráfico sea legible
+  rename_with(~str_remove(., "PBI - "))
+
+# 2. Calculamos la matriz de correlación
+matriz_cor <- cor(df_corr, use = "complete.obs")
+
+# 3. Graficamos la matriz
+ggcorrplot(matriz_cor, 
+           hc.order = TRUE,       # Ordena las variables por similitud
+           type = "lower",        # Solo muestra la mitad inferior para evitar duplicados
+           lab = TRUE,            # Muestra los coeficientes numéricos
+           colors = c("#E46726", "white", "#6D9EC1"), # Naranja (negativa) a Azul (positiva),
+           ggtheme = theme_minimal())
+```
+
+## Dispersión
+- Se utilizara un Gráficos de Dispersión para analizar que sector tiene mayor relacion con respecto al pbi general
+  - Nube de puntos alargada: Indica una relación fuerte.
+  - Nube de puntos dispersa: Indica que no hay una relación clara.
+  - Línea Roja: Si los puntos están muy pegados a la línea roja, el modelo tiene un error bajo. Si los puntos están muy lejos, el modelo tendrá un error alto.
+  
+```{r}
+#| fig-cap: Relación de Dispersión Sectores vs. PBI General.
+# Transformamos a formato largo para graficar todos contra el PBI General
+df_dispersion <- data_limpio %>%
+  pivot_longer(
+    cols = c(`PBI - Agropecuario`, `PBI - Pesca`, `PBI - Mineria`, `PBI - Construccion`, `PBI - Comerio`),
+    names_to = "sector",
+    values_to = "valor_sector"
+  ) %>%
+  mutate(sector = str_remove(sector, "PBI - "))
+
+# Graficamos cada sector contra el PBI General
+ggplot(df_dispersion, aes(x = valor_sector, y = `PBI General`)) +
+  geom_point(alpha = 0.5, color = "darkblue") +
+  geom_smooth(method = "lm", color = "red", se = TRUE) + # Añade la línea de tendencia de la regresión
+  facet_wrap(~sector, scales = "free_x") + # Crea un gráfico por sector
+  labs(
+    x = "Valor del Índice Sectorial",
+    y = "Valor del PBI General"
+  ) +
+  theme_bw()
+```
+
+
+# Análisis de Regresion Lineal Multiple
+
+Se utilizara la regresion lineal para determinar la dependencia del PBI en base a los sectores
+- Variable Dependiente: 
+$$ Y: \text{PBI General}$$
+- Variables Independientes:
+$$X_1: \text{PBI - agropecuario}$$
+$$X_2: \text{PBI - pesca}$$
+$$X_3: \text{PBI - mineria}$$
+$$X_4: \text{PBI - construccion}$$
+$$X_4: \text{PBI - comercio}$$
+```{r}
+df_regresion <- data_limpio %>% 
+  clean_names()
+
+modelo <- lm(pbi_general ~ pbi_agropecuario + 
+                            pbi_pesca + 
+                            pbi_mineria + 
+                            pbi_construccion + 
+                            pbi_comerio, 
+             data = df_regresion)
+```
+## Resultados
+Los resultados de la regresion lineal son los siguientes:
+```{r}
+summary(modelo)
+```
+- Coeficientes: Indican cuánto cambia el PBI por cada unidad que aumenta la variable independiente.
+- P-valor: Si es menor a 0.05, esa variable es estadísticamente significativa para explicar el PBI.
+- R²: Indica qué porcentaje de la variación del PBI es explicada por el modelo. Un 0.99 significa que el modelo explica casi todos los datos.
+
+
+## Ecuación de Dependencia
+
+En base a los coeficientes se genera la ecuacion de dependencia:
+```{r}
+coeficientes <- coef(modelo)
+
+coeficientes |> 
+  kable(booktabs = TRUE,
+        align = 'ccccl',
+        linesep = "" ,
+        format.args = list(big.mark = ",", digits = 4)) |> 
+  kable_styling(latex_options = c("HOLD_position","striped"), font_size = 11)%>%
+  row_spec(0, align = "c",bold=T )
+```
+
+$$
+\begin{aligned}
+pbi\_general = 1.64 + 0.12(pbi\_agropecuario) + 0.01(pbi\_pesca) + \\
+0.34(pbi\_mineria) + 0.11(pbi\_construccion) + 0.41(pbi\_comerio)
+\end{aligned}
+$$
+
+## Diagnóstico del modelo
+```{r}
+#| fig-cap: Diagnostico del modelo
+par(mfrow = c(2, 2)) # Divide la pantalla en 4 para ver los gráficos juntos
+plot(modelo)
+```
+- Residuals vs Fitted: Regresion lineal confiable. Relacion entre el PBI de los sectores con el PBI general
+- Normal Q-Q: Los errores del modelo se distribuyen de forma normal
+
+
+## Predicción
+Se puede usar el modelo predecir el PBI de un proximo año
+$$
+\begin{aligned}
+pbi\_general = 1.64 + 0.12(pbi\_agropecuario) + 0.01(pbi\_pesca) + \\
+0.34(pbi\_mineria) + 0.11(pbi\_construccion) + 0.41(pbi\_comerio)
+\end{aligned}
+$$
+
+Si se desea predecir cual sera el PBI basado en los siguientes valores:
+
+- pbi_agropecuario = 65 
+- pbi_pesca = 70
+- pbi_mineria = 64
+- pbi_construccion = 59
+- pbi_comerio = 110
+
+El resultado de la prediccion sera:
+```{r}
+nuevos_datos <- data.frame(
+  pbi_agropecuario = 65, 
+  pbi_pesca = 70, 
+  pbi_mineria = 64,
+  pbi_construccion = 59,
+  pbi_comerio = 110
+)
+
+pred <- predict(modelo, nuevos_datos)
+show(pred)
+```
+
+## Mapa de calor
+Se muestra la correlacion entre los distintos PBIs
+```{r}
+#| fig-cap: Mapa de calor de correlaciones
+#| 
+# Seleccionar variables numéricas
+datos_calor <- df_regresion[, c(
+  "pbi_general",
+  "pbi_agropecuario",
+  "pbi_pesca",
+  "pbi_mineria",
+  "pbi_construccion",
+  "pbi_comerio"
+)]
+
+# Matriz de correlación
+cor_matrix <- cor(datos_calor)
+
+# Convertir a formato largo
+cor_long <- melt(cor_matrix)
+
+# Graficar
+ggplot(cor_long, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile() +
+  geom_text(aes(label = round(value, 2)), size = 3) +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0) +
+  labs(title = "Mapa de calor de correlaciones",
+       x = "",
+       y = "",
+       fill = "Correlación") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+# CONCLUSIONES
+
+- El modelo es altamente explicativo
+  - El valor de R² = 0.9902 indica que el modelo explica aproximadamente el 99% de la variabilidad del PBI.
+  - Los sectores economicos explican casi completamente el comportamiento del PBI.
+- El modelo es estadísticamente significativo
+  - El p-valor global (menor a 0.05) muestra que el modelo en su conjunto es significativo.
+  - Existe evidencia estadística suficiente para afirmar que las variables independientes influyen en el PBI.
+
+- Todos los sectores analizados tienen un efecto significativo sobre el PBI
+  - Comercio (0.4148): mayor influencia
+  - Minería (0.3353): segundo más importante
+  - Agropecuario (0.1217): impacto moderado
+  - Construccion (0.1123): impacto moderado
+  - Pesca (0.0117): impacto bajo
+
+- El crecimiento del PBI está principalmente impulsado por el comercio y la minería.
+
+# RESUMEN
+
+En este trabajo se analizó el comportamiento del Producto Bruto Interno (PBI) utilizando el lenguaje R. Se aplicaron técnicas de visualización de datos y análisis estadístico para explorar la relación entre el PBI y diversos sectores económicos, como comercio, minería, construcción, agropecuario y pesca.
+
+Se empleó un modelo de regresión lineal múltiple, para explicar la dependencia del PBI del pais en base a diferentes sectores. Los resultados muestran que el comercio y la minería tienen mayor influencia, mientras que la pesca presenta un impacto menor.
+
+Finalmente, se utilizaron gráficos para identificar patrones y tendencias, lo que permitió comprender mejor la dinámica del crecimiento económico.
+
+\newpage
